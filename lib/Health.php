@@ -164,12 +164,18 @@ class Health {
         
         if (!empty($response)) {
             $json = json_decode($response, true);
-            if (!empty($json) && isset($json['ports'][0]['isOpen'])) {
+            if ($json === null) {
+                $result['error'] = 'Invalid JSON response: ' . substr($response, 0, 200);
+            } elseif (!isset($json['ports'])) {
+                $result['error'] = 'Missing ports array in response: ' . json_encode($json);
+            } elseif (!isset($json['ports'][0])) {
+                $result['error'] = 'Empty ports array in response: ' . json_encode($json);
+            } elseif (!isset($json['ports'][0]['isOpen'])) {
+                $result['error'] = 'Missing isOpen field in response: ' . json_encode($json['ports'][0]);
+            } else {
                 $result['isOpen'] = (bool)$json['ports'][0]['isOpen'];
                 $result['response'] = $json;
                 return $result;
-            } else {
-                $result['error'] = 'Invalid response format';
             }
         } else {
             $result['error'] = 'No response from external service';
@@ -232,12 +238,14 @@ class Health {
      * @return string|false Response body or false on failure
      */
     private static function postRequest(string $url, array $data, int $timeout = 10) {
+        $jsonData = json_encode($data);
+        
         // Method 1: Use cURL extension if available
         if (function_exists('curl_init')) {
             $ch = curl_init();
             curl_setopt($ch, CURLOPT_URL, $url);
             curl_setopt($ch, CURLOPT_POST, true);
-            curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode($data));
+            curl_setopt($ch, CURLOPT_POSTFIELDS, $jsonData);
             curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
             curl_setopt($ch, CURLOPT_TIMEOUT, $timeout);
             curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 5);
@@ -251,11 +259,23 @@ class Health {
             
             $response = curl_exec($ch);
             $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+            $curlError = curl_error($ch);
             curl_close($ch);
             
-            if ($httpCode >= 200 && $httpCode < 300) {
-                return $response;
+            // Log detailed error information
+            if ($curlError) {
+                error_log("External port check cURL error for {$url}: {$curlError}");
+                return false;
             }
+            
+            if ($httpCode < 200 || $httpCode >= 300) {
+                error_log("External port check HTTP error for {$url}: HTTP {$httpCode}, Response: " . substr($response, 0, 200));
+                return false;
+            }
+            
+            // Log successful response for debugging
+            error_log("External port check response for {$url}: HTTP {$httpCode}, Length: " . strlen($response) . ", Data: " . substr($response, 0, 500));
+            return $response;
         }
         
         // Method 2: Use file_get_contents with stream context
@@ -264,11 +284,19 @@ class Health {
                 'method' => 'POST',
                 'header' => "Content-Type: application/json\r\n" .
                            "User-Agent: ServerMonitor/1.0\r\n",
-                'content' => json_encode($data),
+                'content' => $jsonData,
                 'timeout' => $timeout
             ]
         ]);
         
-        return @file_get_contents($url, false, $context);
+        $response = @file_get_contents($url, false, $context);
+        
+        if ($response === false) {
+            error_log("External port check file_get_contents failed for {$url}");
+        } else {
+            error_log("External port check response (file_get_contents) for {$url}: Length: " . strlen($response) . ", Data: " . substr($response, 0, 500));
+        }
+        
+        return $response;
     }
 }
