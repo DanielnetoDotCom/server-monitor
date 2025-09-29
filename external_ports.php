@@ -108,6 +108,15 @@ $hostname = trim($data['hostname']);
 $ports = $data['ports'];
 $timestamp = (int)$data['time'];
 
+// Get group name (optional field, defaults to 'default')
+$groupName = isset($data['group_name']) ? $data['group_name'] : 'default';
+
+// Sanitize group name
+$groupName = preg_replace('/[^a-zA-Z0-9_-]/', '', $groupName);
+if (empty($groupName) || strlen($groupName) > 50) {
+    $groupName = 'default';
+}
+
 // Enhanced validation
 if (empty($serverId) || empty($hostname)) {
     http_response_code(400);
@@ -162,6 +171,11 @@ if (count($ports) > count($allowedPorts)) {
     exit;
 }
 
+// Occasionally clean up old database records (0.5% chance, less frequent than ingest)
+if (mt_rand(1, 200) === 1) {
+    cleanup_old_data($pdo);
+}
+
 try {
     $currentTime = now();
     $processedPorts = 0;
@@ -173,10 +187,10 @@ try {
         // Check if we recently checked this port for this server (avoid spam)
         $stmt = $pdo->prepare('
             SELECT last_checked FROM external_ports 
-            WHERE server_id = ? AND port = ? 
+            WHERE server_id = ? AND port = ? AND group_name = ?
             ORDER BY last_checked DESC LIMIT 1
         ');
-        $stmt->execute([$serverId, $port]);
+        $stmt->execute([$serverId, $port, $groupName]);
         $lastChecked = $stmt->fetchColumn();
         
         // Only check if it hasn't been checked in the last 5 minutes
@@ -187,16 +201,17 @@ try {
         // Perform external port check
         $portResult = Health::isPortOpenExternal($hostname, $port, EXTERNAL_PORT_TIMEOUT);
         
-        // Store or update the result (no longer storing IP address)
+        // Store or update the result (including group name)
         $stmt = $pdo->prepare('
             INSERT OR REPLACE INTO external_ports 
-            (server_id, hostname, port, is_open, service_name, last_checked, response_data)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (server_id, hostname, group_name, port, is_open, service_name, last_checked, response_data)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
         ');
         
         $stmt->execute([
             $serverId,
             $hostname,
+            $groupName,
             $port,
             $portResult['isOpen'] ? 1 : 0,
             $portResult['service'],

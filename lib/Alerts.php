@@ -15,24 +15,25 @@ class Alerts {
      * @param string $kind Alert kind (disk, apache, mysql)
      * @param string $level Alert level (warn, crit, down)
      * @param int $cooldownMinutes Cooldown period in minutes
+     * @param string $groupName Group name for multi-tenant support
      * @return bool True if alert can be sent
      */
-    public static function maySend(PDO $db, string $serverId, string $kind, string $level, int $cooldownMinutes): bool {
+    public static function maySend(PDO $db, string $serverId, string $kind, string $level, int $cooldownMinutes, string $groupName = 'default'): bool {
         $cooldownSeconds = $cooldownMinutes * 60;
         $cutoffTime = now() - $cooldownSeconds;
         
         try {
-            $stmt = $db->prepare('SELECT last_sent FROM alerts WHERE server_id = ? AND kind = ? AND level = ?');
-            $stmt->execute([$serverId, $kind, $level]);
+            $stmt = $db->prepare('SELECT last_sent FROM alerts WHERE server_id = ? AND kind = ? AND level = ? AND group_name = ?');
+            $stmt->execute([$serverId, $kind, $level, $groupName]);
             $lastSent = $stmt->fetchColumn();
             
             if ($lastSent === false || $lastSent < $cutoffTime) {
                 // Update or insert the alert record
                 $stmt = $db->prepare('
-                    INSERT OR REPLACE INTO alerts (server_id, kind, level, last_sent) 
-                    VALUES (?, ?, ?, ?)
+                    INSERT OR REPLACE INTO alerts (server_id, kind, level, last_sent, group_name) 
+                    VALUES (?, ?, ?, ?, ?)
                 ');
-                $stmt->execute([$serverId, $kind, $level, now()]);
+                $stmt->execute([$serverId, $kind, $level, now(), $groupName]);
                 return true;
             }
             

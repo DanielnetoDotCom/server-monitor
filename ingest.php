@@ -46,9 +46,10 @@ if (file_exists($rateLimitFile)) {
 
 file_put_contents($rateLimitFile, json_encode($requests), LOCK_EX);
 
-// Occasionally clean up old rate limit files (1% chance)
+// Occasionally clean up old rate limit files and database records (1% chance)
 if (mt_rand(1, 100) === 1) {
     cleanup_rate_limits();
+    cleanup_old_data($pdo);
 }
 
 // Check content length (prevent large payload attacks)
@@ -91,6 +92,15 @@ foreach ($required as $field) {
         echo "Missing field: $field";
         exit;
     }
+}
+
+// Get group name (optional field, defaults to 'default')
+$groupName = isset($data['group_name']) ? $data['group_name'] : 'default';
+
+// Sanitize group name
+$groupName = preg_replace('/[^a-zA-Z0-9_-]/', '', $groupName);
+if (empty($groupName) || strlen($groupName) > 50) {
+    $groupName = 'default';
 }
 
 // Validate secret (timing attack safe)
@@ -148,30 +158,32 @@ if (abs($timestamp - $currentTime) > 300) {
 }
 
 try {
-    // Insert the report (no longer storing IP address)
+    // Insert the report (including group name)
     $stmt = $pdo->prepare('
-        INSERT INTO reports (server_id, hostname, disk_pct, apache_ok, mysql_ok, ts)
-        VALUES (?, ?, ?, ?, ?, ?)
+        INSERT INTO reports (server_id, hostname, group_name, disk_pct, apache_ok, mysql_ok, ts)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
     ');
-    $stmt->execute([$serverId, $hostname, $diskPct, $apacheOk, $mysqlOk, $timestamp]);
+    $stmt->execute([$serverId, $hostname, $groupName, $diskPct, $apacheOk, $mysqlOk, $timestamp]);
     
     // Check for alert conditions and send alerts if needed
     
     // Disk usage alerts
     if ($diskPct >= DISK_CRIT_PCT) {
-        if (Alerts::maySend($pdo, $serverId, 'disk', 'crit', ALERT_COOLDOWN_M)) {
-            $subject = "[CRITICAL] Disk {$diskPct}% - {$hostname}";
+        if (Alerts::maySend($pdo, $serverId, 'disk', 'crit', ALERT_COOLDOWN_M, $groupName)) {
+            $subject = "[CRITICAL] Disk {$diskPct}% - {$hostname} ({$groupName})";
             $body = "CRITICAL: Disk usage on {$hostname} is at {$diskPct}%\n\n";
             $body .= "Server ID: {$serverId}\n";
+            $body .= "Group: {$groupName}\n";
             $body .= "Threshold: " . DISK_CRIT_PCT . "%\n";
             $body .= "Time: " . format_time($timestamp) . "\n";
             Alerts::send_alert($subject, $body);
         }
     } elseif ($diskPct >= DISK_WARN_PCT) {
-        if (Alerts::maySend($pdo, $serverId, 'disk', 'warn', ALERT_COOLDOWN_M)) {
-            $subject = "[WARNING] Disk {$diskPct}% - {$hostname}";
+        if (Alerts::maySend($pdo, $serverId, 'disk', 'warn', ALERT_COOLDOWN_M, $groupName)) {
+            $subject = "[WARNING] Disk {$diskPct}% - {$hostname} ({$groupName})";
             $body = "WARNING: Disk usage on {$hostname} is at {$diskPct}%\n\n";
             $body .= "Server ID: {$serverId}\n";
+            $body .= "Group: {$groupName}\n";
             $body .= "Warning threshold: " . DISK_WARN_PCT . "%\n";
             $body .= "Critical threshold: " . DISK_CRIT_PCT . "%\n";
             $body .= "Time: " . format_time($timestamp) . "\n";
@@ -181,10 +193,11 @@ try {
     
     // Apache status alerts
     if ($apacheOk == 0) {
-        if (Alerts::maySend($pdo, $serverId, 'apache', 'down', ALERT_COOLDOWN_M)) {
-            $subject = "[DOWN] Apache - {$hostname}";
+        if (Alerts::maySend($pdo, $serverId, 'apache', 'down', ALERT_COOLDOWN_M, $groupName)) {
+            $subject = "[DOWN] Apache - {$hostname} ({$groupName})";
             $body = "ALERT: Apache web server is DOWN on {$hostname}\n\n";
             $body .= "Server ID: {$serverId}\n";
+            $body .= "Group: {$groupName}\n";
             $body .= "Time: " . format_time($timestamp) . "\n";
             $body .= "Please check the Apache service status immediately.\n";
             Alerts::send_alert($subject, $body);
@@ -193,10 +206,11 @@ try {
     
     // MySQL status alerts
     if ($mysqlOk == 0) {
-        if (Alerts::maySend($pdo, $serverId, 'mysql', 'down', ALERT_COOLDOWN_M)) {
-            $subject = "[DOWN] MySQL - {$hostname}";
+        if (Alerts::maySend($pdo, $serverId, 'mysql', 'down', ALERT_COOLDOWN_M, $groupName)) {
+            $subject = "[DOWN] MySQL - {$hostname} ({$groupName})";
             $body = "ALERT: MySQL database server is DOWN on {$hostname}\n\n";
             $body .= "Server ID: {$serverId}\n";
+            $body .= "Group: {$groupName}\n";
             $body .= "Time: " . format_time($timestamp) . "\n";
             $body .= "Please check the MySQL service status immediately.\n";
             Alerts::send_alert($subject, $body);

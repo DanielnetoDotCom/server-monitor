@@ -18,7 +18,9 @@ define('ALERT_TO', 'admin@yoursite.com');
 
 // Site branding
 define('CLIENT_URL', 'https://yourdomain.com');
+define('SERVER_URL', 'http://localhost:81/server-monitor/');
 define('SITE_TITLE', 'Server Monitor Dashboard');
+define('GROUP_NAME', 'default');
 
 /**
  * =======================================================
@@ -42,6 +44,10 @@ define('DISK_CRIT_PCT', 95);    // Critical threshold
 // Monitoring timing settings
 define('STALE_MINUTES', 5);      // Minutes after which a server is considered "stale"
 define('ALERT_COOLDOWN_M', 60);  // Minutes between alerts for same server/kind/level
+
+// Database maintenance settings
+define('DATA_RETENTION_DAYS', 7);    // Days to keep monitoring data (older data will be deleted)
+define('ALERT_RETENTION_DAYS', 30);  // Days to keep alert records (for cooldown functionality)
 
 // Health check timeouts
 define('APACHE_CHECK_TIMEOUT', 2);    // seconds

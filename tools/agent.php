@@ -287,7 +287,8 @@ function sendExternalPortData(string $hostname): void {
         'server_id' => $SERVER_ID,
         'hostname' => $hostname,
         'ports' => $portsToCheck,
-        'time' => time()
+        'time' => time(),
+        'group_name' => GROUP_NAME
     ];
     
     // Use curl to send data with longer timeout for external checks
@@ -330,7 +331,8 @@ function main(): void {
         'disk_pct' => $diskPct,
         'apache_ok' => $apacheOk,
         'mysql_ok' => $mysqlOk,
-        'time' => $timestamp
+        'time' => $timestamp,
+        'group_name' => GROUP_NAME
     ];
     
     // Send data to monitoring server

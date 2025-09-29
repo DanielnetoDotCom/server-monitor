@@ -1,0 +1,8 @@
+RewriteEngine On
+
+# Enable URL rewriting for group-based filtering
+# Format: /group/customer-name/ will be rewritten to /?group=customer-name
+
+# Rewrite /group/customer-name/ to index.php?group=customer-name
+RewriteRule ([a-zA-Z0-9_-]+) index.php?group=$1 [L,QSA]
+
