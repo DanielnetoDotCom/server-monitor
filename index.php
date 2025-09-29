@@ -85,23 +85,31 @@ $currentTime = now();
     <title><?php echo h(SITE_TITLE); ?></title>
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <style>
-        .group-badge-default {
-            background-color: #f3e5f5 !important;
-            color: #7b1fa2 !important;
-            border-color: #ce93d8 !important;
-        }
+        <?php
+        // Generate dynamic colors for all available groups
+        $colorPalette = [
+            ['bg' => '#f3e5f5', 'text' => '#7b1fa2', 'border' => '#ce93d8'], // Purple
+            ['bg' => '#e8f5e8', 'text' => '#2e7d32', 'border' => '#a5d6a7'], // Green
+            ['bg' => '#fff3e0', 'text' => '#ef6c00', 'border' => '#ffcc02'], // Orange
+            ['bg' => '#e3f2fd', 'text' => '#1976d2', 'border' => '#90caf9'], // Blue
+            ['bg' => '#fce4ec', 'text' => '#c2185b', 'border' => '#f8bbd9'], // Pink
+            ['bg' => '#f1f8e9', 'text' => '#689f38', 'border' => '#c5e1a5'], // Light Green
+            ['bg' => '#fff8e1', 'text' => '#f57c00', 'border' => '#ffecb3'], // Amber
+            ['bg' => '#e8eaf6', 'text' => '#5e35b1', 'border' => '#c5cae9'], // Deep Purple
+            ['bg' => '#e0f2f1', 'text' => '#00695c', 'border' => '#b2dfdb'], // Teal
+            ['bg' => '#fafafa', 'text' => '#424242', 'border' => '#e0e0e0'], // Grey
+        ];
 
-        .group-badge-customer1 {
-            background-color: #e8f5e8 !important;
-            color: #2e7d32 !important;
-            border-color: #a5d6a7 !important;
+        foreach ($availableGroups as $index => $group) {
+            $colorIndex = $index % count($colorPalette);
+            $colors = $colorPalette[$colorIndex];
+            echo ".group-badge-" . h($group) . " {\n";
+            echo "    background-color: {$colors['bg']} !important;\n";
+            echo "    color: {$colors['text']} !important;\n";
+            echo "    border-color: {$colors['border']} !important;\n";
+            echo "}\n\n";
         }
-
-        .group-badge-customer2 {
-            background-color: #fff3e0 !important;
-            color: #ef6c00 !important;
-            border-color: #ffcc02 !important;
-        }
+        ?>
     </style>
     <script>
         // Auto-refresh every 60 seconds
