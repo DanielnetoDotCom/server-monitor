@@ -303,6 +303,28 @@ function sendData(array $data): bool {
         verboseLog("Using PHP cURL extension");
         $result = executeCurl($PANEL_URL, $data, 10);
         
+        // Parse and display server response
+        if ($result['response']) {
+            verboseLog("Server Response: " . $result['response']);
+            
+            // Try to parse JSON response
+            $responseData = json_decode($result['response'], true);
+            if ($responseData) {
+                if (isset($responseData['status'])) {
+                    verboseLog("Response Status: " . $responseData['status']);
+                }
+                if (isset($responseData['message'])) {
+                    verboseLog("Response Message: " . $responseData['message']);
+                }
+                if (isset($responseData['report_id'])) {
+                    verboseLog("Report ID: " . $responseData['report_id']);
+                }
+                if (isset($responseData['error_type'])) {
+                    verboseLog("Error Type: " . $responseData['error_type']);
+                }
+            }
+        }
+        
         // Log errors for debugging
         if ($result['error']) {
             $errorMsg = "Agent cURL Error: " . $result['error'];
@@ -310,7 +332,7 @@ function sendData(array $data): bool {
             verboseLog("ERROR: " . $errorMsg);
         }
         if (!$result['success']) {
-            $errorMsg = "Agent HTTP Error: {$PANEL_URL} Code " . $result['httpCode'] . ", Response: " . substr($result['response'], 0, 500);
+            $errorMsg = "Agent HTTP Error: {$PANEL_URL} Code " . $result['httpCode'];
             error_log($errorMsg);
             verboseLog("ERROR: " . $errorMsg);
         } else {
@@ -325,20 +347,47 @@ function sendData(array $data): bool {
         verboseLog("Using command-line curl as fallback");
         $jsonData = json_encode($data);
         $tempFile = tempnam(sys_get_temp_dir(), 'monitor_data');
+        $responseFile = tempnam(sys_get_temp_dir(), 'monitor_response');
         file_put_contents($tempFile, $jsonData);
         
         $cmd = sprintf(
-            'curl -fsS --max-time 10 -k -H "Content-Type: application/json" -d @%s %s >/dev/null 2>&1',
+            'curl -fsS --max-time 10 -k -H "Content-Type: application/json" -d @%s %s -o %s',
             escapeshellarg($tempFile),
-            escapeshellarg($PANEL_URL)
+            escapeshellarg($PANEL_URL),
+            escapeshellarg($responseFile)
         );
         
         $output = shell_exec($cmd . '; echo $?');
+        $exitCode = trim($output);
+        
+        // Read response if available
+        if (file_exists($responseFile)) {
+            $response = file_get_contents($responseFile);
+            if ($response) {
+                verboseLog("Server Response: " . $response);
+                
+                // Try to parse JSON response
+                $responseData = json_decode($response, true);
+                if ($responseData) {
+                    if (isset($responseData['status'])) {
+                        verboseLog("Response Status: " . $responseData['status']);
+                    }
+                    if (isset($responseData['message'])) {
+                        verboseLog("Response Message: " . $responseData['message']);
+                    }
+                    if (isset($responseData['report_id'])) {
+                        verboseLog("Report ID: " . $responseData['report_id']);
+                    }
+                }
+            }
+            unlink($responseFile);
+        }
+        
         unlink($tempFile);
         
-        $success = trim($output) === '0';
+        $success = $exitCode === '0';
         if (!$success) {
-            $errorMsg = "Agent Command-line cURL failed with exit code: " . trim($output);
+            $errorMsg = "Agent Command-line cURL failed with exit code: " . $exitCode;
             error_log($errorMsg);
             verboseLog("ERROR: " . $errorMsg);
         } else {

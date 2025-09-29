@@ -17,7 +17,8 @@ header('X-XSS-Protection: 1; mode=block');
 // Only accept POST requests
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
-    echo 'Method not allowed';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Method not allowed']);
     exit;
 }
 
@@ -35,7 +36,8 @@ if (file_exists($rateLimitFile)) {
     
     if (count($requests) >= $rateLimit) {
         http_response_code(429);
-        echo 'Rate limit exceeded';
+        header('Content-Type: application/json');
+        echo json_encode(['status' => 'error', 'message' => 'Rate limit exceeded']);
         exit;
     }
     
@@ -56,7 +58,8 @@ if (mt_rand(1, 100) === 1) {
 $contentLength = $_SERVER['CONTENT_LENGTH'] ?? 0;
 if ($contentLength > 10240) { // 10KB limit
     http_response_code(413);
-    echo 'Payload too large';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Payload too large']);
     exit;
 }
 
@@ -64,7 +67,8 @@ if ($contentLength > 10240) { // 10KB limit
 $contentType = $_SERVER['CONTENT_TYPE'] ?? '';
 if (strpos($contentType, 'application/json') !== 0) {
     http_response_code(415);
-    echo 'Content type must be application/json';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Content type must be application/json']);
     exit;
 }
 
@@ -72,7 +76,8 @@ if (strpos($contentType, 'application/json') !== 0) {
 $input = file_get_contents('php://input');
 if (!$input) {
     http_response_code(400);
-    echo 'No input data';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'No input data']);
     exit;
 }
 
@@ -80,7 +85,8 @@ if (!$input) {
 $data = json_decode($input, true);
 if (!$data) {
     http_response_code(400);
-    echo 'Invalid JSON';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Invalid JSON']);
     exit;
 }
 
@@ -89,7 +95,8 @@ $required = ['secret', 'server_id', 'hostname', 'disk_pct', 'apache_ok', 'mysql_
 foreach ($required as $field) {
     if (!isset($data[$field])) {
         http_response_code(400);
-        echo "Missing field: $field";
+        header('Content-Type: application/json');
+        echo json_encode(['status' => 'error', 'message' => "Missing field: $field"]);
         exit;
     }
 }
@@ -106,7 +113,8 @@ if (empty($groupName) || strlen($groupName) > 50) {
 // Validate secret (timing attack safe)
 if (!hash_equals(MONITOR_SECRET, $data['secret'])) {
     http_response_code(403);
-    echo 'Invalid secret';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Invalid secret']);
     exit;
 }
 
@@ -121,33 +129,38 @@ $timestamp = (int)$data['time'];
 // Enhanced validation
 if (empty($serverId) || empty($hostname)) {
     http_response_code(400);
-    echo 'Invalid server identification data';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Invalid server identification data']);
     exit;
 }
 
 // Validate server_id format (alphanumeric, hyphens, dots, underscores only)
 if (!preg_match('/^[a-zA-Z0-9._-]+$/', $serverId) || strlen($serverId) > 100) {
     http_response_code(400);
-    echo 'Invalid server ID format';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Invalid server ID format']);
     exit;
 }
 
 // Validate hostname format (basic hostname validation)
 if (!preg_match('/^[a-zA-Z0-9.-]+$/', $hostname) || strlen($hostname) > 255) {
     http_response_code(400);
-    echo 'Invalid hostname format';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Invalid hostname format']);
     exit;
 }
 
 if ($diskPct < 0 || $diskPct > 100) {
     http_response_code(400);
-    echo 'Invalid disk percentage';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Invalid disk percentage']);
     exit;
 }
 
 if (!in_array($apacheOk, [0, 1]) || !in_array($mysqlOk, [0, 1])) {
     http_response_code(400);
-    echo 'Invalid service status values';
+    header('Content-Type: application/json');
+    echo json_encode(['status' => 'error', 'message' => 'Invalid service status values']);
     exit;
 }
 
@@ -163,7 +176,13 @@ try {
         INSERT INTO reports (server_id, hostname, group_name, disk_pct, apache_ok, mysql_ok, ts)
         VALUES (?, ?, ?, ?, ?, ?, ?)
     ');
-    $stmt->execute([$serverId, $hostname, $groupName, $diskPct, $apacheOk, $mysqlOk, $timestamp]);
+    $result = $stmt->execute([$serverId, $hostname, $groupName, $diskPct, $apacheOk, $mysqlOk, $timestamp]);
+    
+    if (!$result) {
+        throw new Exception('Failed to insert report data');
+    }
+    
+    $reportId = $pdo->lastInsertId();
     
     // Check for alert conditions and send alerts if needed
     
@@ -217,15 +236,53 @@ try {
         }
     }
     
-    // Return success
-    echo 'ok';
+    // Return success with details
+    $response = [
+        'status' => 'success',
+        'message' => 'Report saved successfully',
+        'report_id' => $reportId,
+        'server_id' => $serverId,
+        'hostname' => $hostname,
+        'group_name' => $groupName,
+        'timestamp' => $timestamp,
+        'metrics' => [
+            'disk_pct' => $diskPct,
+            'apache_ok' => $apacheOk,
+            'mysql_ok' => $mysqlOk
+        ]
+    ];
+    
+    header('Content-Type: application/json');
+    echo json_encode($response, JSON_PRETTY_PRINT);
     
 } catch (PDOException $e) {
     error_log('Database error in ingest: ' . $e->getMessage());
     http_response_code(500);
-    echo 'Database error';
+    
+    $response = [
+        'status' => 'error',
+        'message' => 'Database error occurred',
+        'error_type' => 'database',
+        'error_code' => $e->getCode(),
+        'server_id' => $serverId ?? null,
+        'hostname' => $hostname ?? null
+    ];
+    
+    header('Content-Type: application/json');
+    echo json_encode($response, JSON_PRETTY_PRINT);
+    
 } catch (Exception $e) {
     error_log('Error in ingest: ' . $e->getMessage());
     http_response_code(500);
-    echo 'Server error';
+    
+    $response = [
+        'status' => 'error',
+        'message' => 'Server error occurred',
+        'error_type' => 'general',
+        'server_id' => $serverId ?? null,
+        'hostname' => $hostname ?? null
+    ];
+    
+    header('Content-Type: application/json');
+    echo json_encode($response, JSON_PRETTY_PRINT);
 }
