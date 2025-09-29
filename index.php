@@ -16,7 +16,7 @@ $availableGroups = get_available_groups();
 // Determine if we should show all groups or just the current one
 $showAllGroups = (!isset($_GET['group']) && $currentGroup === 'default');
 
-if ($_GET['group'] === 'index') {
+if (isset($_GET['group']) && $_GET['group'] === 'index') {
     $showAllGroups = true;
     $_GET['group'] = $currentGroup = 'default';
 }
