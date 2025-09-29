@@ -25,6 +25,8 @@ error_reporting(E_ALL);
 // Check for verbose flag
 $verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 
+$checkExternalPorts = in_array('--check-ports', $argv) || in_array('-c', $argv);
+
 /**
  * Output message if verbose mode is enabled
  */
@@ -571,7 +573,7 @@ function sendExternalPortData(string $hostname): void {
  * Main execution function
  */
 function main(): void {
-    global $SECRET, $SERVER_ID, $hostname, $verbose;
+    global $SECRET, $SERVER_ID, $hostname, $verbose, $checkExternalPorts;
     
     verboseLog("=== Server Monitor Agent Starting ===");
     verboseLog("Server ID: {$SERVER_ID}");
@@ -629,7 +631,7 @@ function main(): void {
     $currentMinute = (int)date('i');
     verboseLog("Current minute: {$currentMinute}");
     
-    if ($currentMinute % 5 === 0) {
+    if ($currentMinute % 5 === 0 || $checkExternalPorts) {
         verboseLog("=== External Port Check Time ===");
         sendExternalPortData($hostname);
     } else {
