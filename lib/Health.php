@@ -149,8 +149,7 @@ class Health {
     public static function isPortOpenExternal(string $host, int $port, int $timeout = 10): array {
         $postURL = 'https://search.ypt.me/checkPorts.json.php';
         $postURL = self::addQueryParam($postURL, 'host', $host);
-        
-        $ports = [$port];
+        $ports = ['port' => $port];
         $response = self::postRequest($postURL, $ports, $timeout);
         
         $result = [
