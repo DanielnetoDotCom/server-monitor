@@ -197,8 +197,8 @@ try {
         $stmt->execute([$serverId, $port, $groupName]);
         $lastChecked = $stmt->fetchColumn();
         
-        // Only check if it hasn't been checked in the last 5 minutes
-        if ($lastChecked && ($currentTime - $lastChecked) < 300) {
+        // Only check if it hasn't been checked in the last 1 minute (reduced for testing)
+        if ($lastChecked && ($currentTime - $lastChecked) < 60) {
             $skippedPorts++;
             $minutesAgo = round(($currentTime - $lastChecked) / 60, 1);
             $portResults[] = [
