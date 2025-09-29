@@ -179,6 +179,10 @@ if (mt_rand(1, 200) === 1) {
 try {
     $currentTime = now();
     $processedPorts = 0;
+    $skippedPorts = 0;
+    $successfulChecks = 0;
+    $failedChecks = 0;
+    $portResults = [];
     
     // Check each port externally and store results
     foreach ($ports as $port) {
@@ -195,6 +199,13 @@ try {
         
         // Only check if it hasn't been checked in the last 5 minutes
         if ($lastChecked && ($currentTime - $lastChecked) < 300) {
+            $skippedPorts++;
+            $minutesAgo = round(($currentTime - $lastChecked) / 60, 1);
+            $portResults[] = [
+                'port' => $port,
+                'status' => 'skipped',
+                'reason' => "Recently checked {$minutesAgo} minutes ago"
+            ];
             continue;
         }
         
@@ -221,21 +232,70 @@ try {
         
         $processedPorts++;
         
+        // Track results for logging
+        if ($portResult['error']) {
+            $failedChecks++;
+            $portResults[] = [
+                'port' => $port,
+                'service' => $portResult['service'],
+                'status' => 'error',
+                'error' => $portResult['error']
+            ];
+            error_log("Port check failed for {$hostname}:{$port} ({$portResult['service']}) - {$portResult['error']}");
+        } else {
+            $successfulChecks++;
+            $portResults[] = [
+                'port' => $port,
+                'service' => $portResult['service'],
+                'status' => $portResult['isOpen'] ? 'open' : 'closed',
+                'is_open' => $portResult['isOpen']
+            ];
+        }
+        
         // Add small delay between checks to be nice to external service
         if ($processedPorts < count($ports)) {
             usleep(500000); // 0.5 second delay
         }
     }
     
-    // Return success
-    echo 'ok';
+    // Log summary for debugging
+    $totalRequested = count($ports);
+    error_log("External port check summary for {$hostname} ({$groupName}): {$successfulChecks} successful, {$failedChecks} failed, {$skippedPorts} skipped out of {$totalRequested} requested");
+    
+    // Return detailed JSON response instead of just "ok"
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => 'success',
+        'message' => 'Port checks completed',
+        'summary' => [
+            'total_requested' => $totalRequested,
+            'processed' => $processedPorts,
+            'skipped' => $skippedPorts,
+            'successful' => $successfulChecks,
+            'failed' => $failedChecks
+        ],
+        'results' => $portResults,
+        'server_id' => $serverId,
+        'hostname' => $hostname,
+        'group_name' => $groupName
+    ], JSON_PRETTY_PRINT);
     
 } catch (PDOException $e) {
     error_log('Database error in external_ports: ' . $e->getMessage());
     http_response_code(500);
-    echo 'Database error';
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Database error occurred',
+        'error_type' => 'database'
+    ]);
 } catch (Exception $e) {
     error_log('Error in external_ports: ' . $e->getMessage());
     http_response_code(500);
-    echo 'Server error';
+    header('Content-Type: application/json');
+    echo json_encode([
+        'status' => 'error',
+        'message' => 'Server error occurred',
+        'error_type' => 'general'
+    ]);
 }

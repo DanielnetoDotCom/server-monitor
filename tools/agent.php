@@ -420,6 +420,10 @@ function sendExternalPortData(string $hostname): void {
     }
     
     verboseLog("Ports to check: " . implode(', ', $portsToCheck));
+    verboseLog("Port services mapping:");
+    foreach (Health::$PORT_SERVICES as $port => $service) {
+        verboseLog("  Port {$port}: {$service}");
+    }
     
     $payload = [
         'secret' => $SECRET,
@@ -437,21 +441,129 @@ function sendExternalPortData(string $hostname): void {
         verboseLog("Sending external port data to: {$EXTERNAL_PORT_URL}");
         $result = executeCurl($EXTERNAL_PORT_URL, $payload, 30);
         
-        // Log errors for debugging external port checks
+        // Parse and display detailed server response for port checks
+        if ($result['response']) {
+            verboseLog("Port Check Server Response: " . $result['response']);
+            
+            // Try to parse JSON response
+            $responseData = json_decode($result['response'], true);
+            if ($responseData) {
+                if (isset($responseData['status']) && $responseData['status'] === 'success') {
+                    verboseLog("✓ Port check request processed successfully");
+                    
+                    if (isset($responseData['summary'])) {
+                        $summary = $responseData['summary'];
+                        verboseLog("Port Check Summary:");
+                        verboseLog("  • Total requested: " . $summary['total_requested']);
+                        verboseLog("  • Processed: " . $summary['processed']);
+                        verboseLog("  • Skipped (recent): " . $summary['skipped']);
+                        verboseLog("  • Successful checks: " . $summary['successful']);
+                        verboseLog("  • Failed checks: " . $summary['failed']);
+                    }
+                    
+                    if (isset($responseData['results'])) {
+                        verboseLog("Individual Port Results:");
+                        foreach ($responseData['results'] as $portResult) {
+                            $port = $portResult['port'];
+                            $service = $portResult['service'] ?? 'Unknown';
+                            $status = $portResult['status'];
+                            
+                            switch ($status) {
+                                case 'open':
+                                    verboseLog("  ✓ Port {$port} ({$service}): OPEN - Accessible from internet");
+                                    break;
+                                case 'closed':
+                                    verboseLog("  ✗ Port {$port} ({$service}): CLOSED - Not accessible from internet");
+                                    break;
+                                case 'error':
+                                    $error = $portResult['error'] ?? 'Unknown error';
+                                    verboseLog("  ⚠ Port {$port} ({$service}): ERROR - {$error}");
+                                    break;
+                                case 'skipped':
+                                    $reason = $portResult['reason'] ?? 'Recently checked';
+                                    verboseLog("  → Port {$port}: SKIPPED - {$reason}");
+                                    break;
+                                default:
+                                    verboseLog("  ? Port {$port} ({$service}): {$status}");
+                            }
+                        }
+                    }
+                } else {
+                    verboseLog("Server returned an error response");
+                    if (isset($responseData['message'])) {
+                        verboseLog("Error Message: " . $responseData['message']);
+                    }
+                }
+            } else {
+                // If it's a simple "ok" response (legacy), that means ports were processed
+                if (trim($result['response']) === 'ok') {
+                    verboseLog("✓ Port check request accepted by server (legacy response)");
+                    verboseLog("Note: Individual port results are stored in the database and visible in the dashboard");
+                }
+            }
+        }
+        
+        // Detailed error logging for port checks
         if ($result['error']) {
             $errorMsg = "Agent External Port cURL Error: " . $result['error'];
             error_log($errorMsg);
             verboseLog("ERROR: " . $errorMsg);
+            verboseLog("This means the agent couldn't connect to the monitoring server");
         }
+        
         if (!$result['success']) {
-            $errorMsg = "Agent External Port HTTP Error: Code " . $result['httpCode'] . ", Response: " . substr($result['response'], 0, 500);
+            $httpCode = $result['httpCode'];
+            $response = $result['response'];
+            
+            verboseLog("ERROR: External Port HTTP Error (Code {$httpCode})");
+            
+            // Provide specific error explanations
+            switch ($httpCode) {
+                case 400:
+                    verboseLog("  → Bad Request: Invalid data sent to server");
+                    verboseLog("  → Response: " . $response);
+                    break;
+                case 403:
+                    verboseLog("  → Forbidden: Invalid secret key");
+                    verboseLog("  → Check MONITOR_SECRET matches between agent and server");
+                    break;
+                case 405:
+                    verboseLog("  → Method Not Allowed: Server only accepts POST requests");
+                    break;
+                case 413:
+                    verboseLog("  → Payload Too Large: Request data exceeds 5KB limit");
+                    break;
+                case 415:
+                    verboseLog("  → Unsupported Media Type: Content-Type must be application/json");
+                    break;
+                case 429:
+                    verboseLog("  → Rate Limited: Too many requests (max 10/minute for port checks)");
+                    break;
+                case 500:
+                    verboseLog("  → Server Error: Database or internal server problem");
+                    break;
+                case 503:
+                    verboseLog("  → Service Unavailable: External port checking disabled on server");
+                    verboseLog("  → Check ENABLE_EXTERNAL_PORT_CHECK in server config.php");
+                    break;
+                default:
+                    verboseLog("  → HTTP {$httpCode}: " . substr($response, 0, 200));
+                    break;
+            }
+            
+            $errorMsg = "Agent External Port HTTP Error: Code " . $httpCode . ", Response: " . substr($response, 0, 500);
             error_log($errorMsg);
-            verboseLog("ERROR: " . $errorMsg);
         } else {
             verboseLog("SUCCESS: External port data sent successfully (HTTP {$result['httpCode']})");
+            verboseLog("Port validation results:");
+            verboseLog("  ✓ All " . count($portsToCheck) . " ports were accepted by the server");
+            verboseLog("  ✓ Server will check external accessibility for each port");
+            verboseLog("  ✓ Results will be stored in database and shown in dashboard");
+            verboseLog("Note: External port checking may take time. Check dashboard for results.");
         }
     } else {
         verboseLog("ERROR: cURL not available for external port checking");
+        verboseLog("External port checking requires PHP cURL extension or curl command-line tool");
     }
 }
 
@@ -517,7 +629,7 @@ function main(): void {
     $currentMinute = (int)date('i');
     verboseLog("Current minute: {$currentMinute}");
     
-    if ($currentMinute % 5 === 0 || true) {
+    if ($currentMinute % 5 === 0) {
         verboseLog("=== External Port Check Time ===");
         sendExternalPortData($hostname);
     } else {
