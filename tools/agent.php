@@ -379,39 +379,14 @@ function sendExternalPortData(string $hostname): void {
     }
     
     verboseLog("Sending external port check data...");
-    
-    $portsToCheck = [];
-    foreach (Health::$PORT_SERVICES as $port => $service) {
-        $portsToCheck[] = $port;
-    }
-    
-    verboseLog("Ports to check: " . implode(', ', $portsToCheck));
-    verboseLog("Port services mapping:");
-    foreach (Health::$PORT_SERVICES as $port => $service) {
-        verboseLog("  Port {$port}: {$service}");
-    }
-
-    // Send external port check data
-    $postData = [
-        'secret' => $SECRET,
-        'server_id' => $SERVER_ID,
-        'hostname' => $hostname,
-        'ports' => $portsToCheck
-    ];
-
-    $response = Health::executeCurl($PANEL_URL . '/api/external_ports', $postData);
-    if (!$response['success']) {
-        verboseLog("ERROR: Failed to send external port check data");
-        error_log("Agent Error: Failed to send external port check data");
-    }
 
     // use the isPortOpenExternal function to check each port and log results
-    foreach ($portsToCheck as $port) {  
+    foreach (Health::$PORT_SERVICES as $port => $service) {
         $result = Health::isPortOpenExternal($hostname, $port);
         if ($result['isOpen']) {
-            verboseLog("Port {$port} ({$result['service']}) is OPEN");
+            verboseLog("Port {$port} ({$service}) is OPEN");
         } else {
-            verboseLog("Port {$port} ({$result['service']}) is CLOSED");
+            verboseLog("Port {$port} ({$service}) is CLOSED");
             if ($result['error']) {
                 verboseLog("  Error: " . $result['error']);
             }
