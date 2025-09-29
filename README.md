@@ -78,8 +78,6 @@ The agent is cross-platform and works on Linux, Unix, and Windows systems.
    
    Update these lines:
    ```php
-   $PANEL_URL = "https://yourdomain.com/monitor/ingest.php";
-   $EXTERNAL_PORT_URL = "https://yourdomain.com/monitor/external_ports.php";
    $SECRET = "your-strong-secret-key-here";  // Same as config.php
    $CHECK_EXTERNAL_PORTS = true; // Enable external port checking
    ```
@@ -210,10 +208,6 @@ Content-Type: application/json
 - `429`: Rate limit exceeded
 - `500`: Server error
 
-### External Port Check Endpoint
-
-**POST** `/monitor/external_ports.php`
-
 **Headers**:
 ```
 Content-Type: application/json
@@ -326,7 +320,6 @@ sqlite3 /var/www/html/monitor/monitor.sqlite "SELECT * FROM reports ORDER BY ts 
 1. **No data in dashboard**:
    - Check agent cron job: `sudo crontab -l`
    - Test agent manually: `/usr/local/bin/monitor_agent.php`
-   - Verify $PANEL_URL and $SECRET in agent script
    - Check web server error logs
    - Ensure PHP CLI is installed: `php --version`
 
