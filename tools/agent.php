@@ -386,10 +386,7 @@ function sendExternalPortData(string $hostname): void {
         if ($result['isOpen']) {
             verboseLog("Port {$port} ({$service}) is OPEN");
         } else {
-            verboseLog("Port {$port} ({$service}) is CLOSED");
-            if ($result['error']) {
-                verboseLog("  Error: " . $result['error']);
-            }
+            verboseLog("Port {$port} ({$service}) is CLOSED ".json_encode($result));
         }
     }
 }
