@@ -4,5 +4,7 @@ RewriteEngine On
 # Format: /group/customer-name/ will be rewritten to /?group=customer-name
 
 # Rewrite /group/customer-name/ to index.php?group=customer-name
+# Skip rewrite rule for PHP files
+RewriteCond %{REQUEST_FILENAME} !\.php$
 RewriteRule ([a-zA-Z0-9_-]+) index.php?group=$1 [L,QSA]
 
