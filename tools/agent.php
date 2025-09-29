@@ -517,7 +517,7 @@ function main(): void {
     $currentMinute = (int)date('i');
     verboseLog("Current minute: {$currentMinute}");
     
-    if ($currentMinute % 5 === 0) {
+    if ($currentMinute % 5 === 0 || true) {
         verboseLog("=== External Port Check Time ===");
         sendExternalPortData($hostname);
     } else {
