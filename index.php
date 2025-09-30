@@ -54,24 +54,10 @@ try {
         $servers = $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
-    // Get external port data for each server
-    $externalPorts = [];
-    if (defined('ENABLE_EXTERNAL_PORT_CHECK') && ENABLE_EXTERNAL_PORT_CHECK) {
-        foreach ($servers as $server) {
-            $stmt = $pdo->prepare('
-                SELECT port, is_open, service_name, last_checked
-                FROM external_ports 
-                WHERE server_id = ? AND group_name = ?
-                ORDER BY port ASC
-            ');
-            $stmt->execute([$server['server_id'], $server['group_name']]);
-            $externalPorts[$server['server_id']] = $stmt->fetchAll(PDO::FETCH_ASSOC);
-        }
-    }
+
 } catch (PDOException $e) {
     error_log('Dashboard query error: ' . $e->getMessage());
     $servers = [];
-    $externalPorts = [];
 }
 
 $currentTime = now();
@@ -240,9 +226,6 @@ $currentTime = now();
                                 <th class="text-uppercase small fw-semibold">Disk Usage</th>
                                 <th class="text-uppercase small fw-semibold">Apache</th>
                                 <th class="text-uppercase small fw-semibold">MySQL</th>
-                                <?php if (defined('ENABLE_EXTERNAL_PORT_CHECK') && ENABLE_EXTERNAL_PORT_CHECK): ?>
-                                    <th class="text-uppercase small fw-semibold">External Ports</th>
-                                <?php endif; ?>
                                 <th class="text-uppercase small fw-semibold">Last Report</th>
                                 <th class="text-uppercase small fw-semibold">Status</th>
                             </tr>
@@ -256,24 +239,6 @@ $currentTime = now();
                                     <td><?php echo Health::diskBadge($server['disk_pct']); ?></td>
                                     <td><?php echo Health::serviceBadge((bool)$server['apache_ok']); ?></td>
                                     <td><?php echo Health::serviceBadge((bool)$server['mysql_ok']); ?></td>
-                                    <?php if (defined('ENABLE_EXTERNAL_PORT_CHECK') && ENABLE_EXTERNAL_PORT_CHECK): ?>
-                                        <td class="text-nowrap">
-                                            <?php
-                                            $serverPorts = $externalPorts[$server['server_id']] ?? [];
-                                            if (empty($serverPorts)): ?>
-                                                <span class="text-muted small">Not checked</span>
-                                            <?php else: ?>
-                                                <div class="d-flex flex-wrap gap-1">
-                                                    <?php foreach ($serverPorts as $portData): ?>
-                                                        <span class="d-inline-flex align-items-center gap-1" title="<?php echo h($portData['service_name']); ?> (<?php echo h($portData['port']); ?>)">
-                                                            <?php echo Health::externalPortBadge($portData); ?>
-                                                            <small class="fw-bold"><?php echo h($portData['port']); ?></small>
-                                                        </span>
-                                                    <?php endforeach; ?>
-                                                </div>
-                                            <?php endif; ?>
-                                        </td>
-                                    <?php endif; ?>
                                     <td class="font-monospace small text-muted">
                                         <?php if (is_stale($server['ts'])): ?>
                                             <span class="text-danger"><?php echo format_time($server['ts']); ?></span>

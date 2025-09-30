@@ -9,15 +9,7 @@
 class Health
 {
 
-    // Service names for common ports
-    public static $PORT_SERVICES = [
-        80   => 'HTTP',
-        443  => 'HTTPS',
-        8080 => 'HTTP Nginx',
-        8443 => 'HTTPS Nginx',
-        2053 => 'Sockets',
-        1935 => 'RTMP',
-    ];
+
 
     /**
      * Generate a colored badge for display
@@ -146,81 +138,12 @@ class Health
         return $luminance > 0.5 ? 'black' : 'white';
     }
 
-    /**
-     * Check if a port is externally accessible via external service
-     * 
-     * @param string $host The hostname or IP to check
-     * @param int $port The port number to check
-     * @param int $timeout Timeout in seconds (default: 10)
-     * @return array Result with status and response data
-     */
-    public static function isPortOpenExternal(string $host, int $port): array
-    {
-        $postURL = 'https://search.ypt.me/checkPorts.json.php?port[0]=' . urlencode($port);
-        $postURL = self::addQueryParam($postURL, 'host', $host);
-        $response = self::executeCurl($postURL, ['port' => $port]);
-        $result = [
-            'isOpen' => false,
-            'port' => $port,
-            'host' => $host,
-            'service' => self::$PORT_SERVICES[$port] ?? 'Port ' . $port,
-            'response' => $response,
-            'error' => null
-        ];
-
-        if (!empty($response)) {
-            $json = json_decode($response['response'], true);
-            if ($json === null) {
-                $result['error'] = 'Invalid JSON response: ' . substr($response['response'], 0, 200);
-            } elseif (!isset($json['ports'])) {
-                $result['error'] = 'Missing ports array in response: ' . json_encode($json);
-            } elseif (!isset($json['ports'][0])) {
-                $result['error'] = 'Empty ports array in response: ' . json_encode($json);
-            } elseif (!isset($json['ports'][0]['isOpen'])) {
-                $result['error'] = 'Missing isOpen field in response: ' . json_encode($json['ports'][0]);
-            } else {
-                $result['isOpen'] = (bool)$json['ports'][0]['isOpen'];
-                $result['response'] = $json;
-                return $result;
-            }
-        } else {
-            $result['error'] = 'No response from external service';
-        }
-
-        error_log("External port check failed for {$host}:{$port} - " . ($result['error'] ?? 'Unknown error'));
-        return $result;
-    }
 
 
-    /**
-     * Get a badge for external port status
-     * 
-     * @param array $portData Database row from external_ports table
-     * @return string HTML badge
-     */
-    public static function externalPortBadge(array $portData): string
-    {
-        $isOpen = isset($portData['isOpen']) ? $portData['isOpen'] : $portData['is_open'];
-        if ($isOpen) {
-            return self::badge('OPEN', '28a745'); // Green
-        } else {
-            return self::badge('CLOSED', 'dc3545'); // Red
-        }
-    }
 
-    /**
-     * Add query parameter to URL
-     * 
-     * @param string $url Base URL
-     * @param string $param Parameter name
-     * @param string $value Parameter value
-     * @return string URL with added parameter
-     */
-    private static function addQueryParam(string $url, string $param, string $value): string
-    {
-        $separator = (strpos($url, '?') === false) ? '?' : '&';
-        return $url . $separator . urlencode($param) . '=' . urlencode($value);
-    }
+
+
+
 
 
     /**

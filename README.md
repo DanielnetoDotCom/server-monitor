@@ -7,7 +7,7 @@ A lightweight, production-ready server monitoring system with a centralized dash
 - **Centralized Dashboard**: Web-based overview of all monitored servers
 - **Push-based Monitoring**: Lightweight PHP CLI agents report to central endpoint
 - **Cross-Platform**: Works on Linux, Unix, and Windows systems with automatic OS detection
-- **External Port Monitoring**: Check if ports are accessible from the internet
+
 - **Email Alerts**: Configurable thresholds with cooldown periods
 - **Zero Dependencies**: Uses only PHP, SQLite, and standard system tools
 - **Production Ready**: Proper error handling, security, and performance considerations
@@ -79,7 +79,6 @@ The agent is cross-platform and works on Linux, Unix, and Windows systems.
    Update these lines:
    ```php
    $SECRET = "your-strong-secret-key-here";  // Same as config.php
-   $CHECK_EXTERNAL_PORTS = true; // Enable external port checking
    ```
 
 3. **Setup Cron Job**:
@@ -137,26 +136,7 @@ In `config.php`:
 - `STALE_MINUTES`: Minutes before server shows "No signal" (default: 5)
 - `ALERT_COOLDOWN_M`: Minutes between duplicate alerts (default: 60)
 
-### External Port Checking
 
-Configure external port accessibility monitoring:
-
-- `ENABLE_EXTERNAL_PORT_CHECK`: Enable/disable external port checking (default: true)
-- `EXTERNAL_PORT_TIMEOUT`: Timeout for external port checks (default: 10 seconds)
-
-**Default Monitored Ports:**
-- 80: HTTP (Standard web traffic)
-- 443: HTTPS (Secure web traffic)
-- 8080: HTTP Alt (Alternative HTTP port)
-- 8443: HTTPS Alt (Alternative HTTPS port)
-- 2053: Sockets (WebSocket connections)
-- 1935: RTMP (Real-Time Messaging Protocol)
-
-**Important Notes:**
-- External port checks run every 5 minutes to avoid overloading the external service
-- Only add database/cache ports if they are intentionally exposed to the internet
-- Remove unused ports from the configuration to improve performance
-- Agents will only check ports that are configured on the server
 
 ### Email Settings
 
@@ -234,7 +214,7 @@ Content-Type: application/json
 - `415`: Wrong content type
 - `429`: Rate limit exceeded (10 req/min)
 - `500`: Server error
-- `503`: External port checking disabled
+
 
 ## Security Features
 
@@ -388,16 +368,7 @@ monitor/
 - `level`: Alert level (warn, crit, down)
 - `last_sent`: Last alert timestamp
 
-### external_ports
-- `id`: Primary key
-- `server_id`: Server identifier
-- `hostname`: Server hostname
-- `ip`: Server IP address
-- `port`: Port number
-- `is_open`: Port status (1=OPEN, 0=CLOSED)
-- `service_name`: Service description (HTTP, HTTPS, etc.)
-- `last_checked`: Last check timestamp
-- `response_data`: JSON response from external service
+
 
 ## License
 

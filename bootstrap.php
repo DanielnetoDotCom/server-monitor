@@ -39,20 +39,7 @@ try {
         )
     ');
     
-    $pdo->exec('
-        CREATE TABLE IF NOT EXISTS external_ports (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            server_id TEXT NOT NULL,
-            hostname TEXT NOT NULL,
-            group_name TEXT NOT NULL DEFAULT "default",
-            port INTEGER NOT NULL,
-            is_open INTEGER NOT NULL,
-            service_name TEXT,
-            last_checked INTEGER NOT NULL,
-            response_data TEXT,
-            UNIQUE(server_id, port, group_name)
-        )
-    ');
+
     
     // Add group_name column to existing tables if it doesn't exist
     try {
@@ -67,19 +54,14 @@ try {
         // Column already exists, ignore
     }
     
-    try {
-        $pdo->exec('ALTER TABLE external_ports ADD COLUMN group_name TEXT NOT NULL DEFAULT "default"');
-    } catch (PDOException $e) {
-        // Column already exists, ignore
-    }
+
     
     // Create indexes for better performance
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reports_server_ts ON reports(server_id, ts)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_reports_group_server_ts ON reports(group_name, server_id, ts)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_alerts_lookup ON alerts(server_id, kind, level)');
     $pdo->exec('CREATE INDEX IF NOT EXISTS idx_alerts_group_lookup ON alerts(group_name, server_id, kind, level)');
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_external_ports_server ON external_ports(server_id, last_checked)');
-    $pdo->exec('CREATE INDEX IF NOT EXISTS idx_external_ports_group_server ON external_ports(group_name, server_id, last_checked)');
+
     
 } catch (PDOException $e) {
     error_log('Database error: ' . $e->getMessage());
@@ -154,10 +136,7 @@ function cleanup_old_data(PDO $pdo): void {
         $stmt->execute([$dataCutoffTime]);
         $deletedReports = $stmt->rowCount();
         
-        // Clean up old external port data
-        $stmt = $pdo->prepare('DELETE FROM external_ports WHERE last_checked < ?');
-        $stmt->execute([$dataCutoffTime]);
-        $deletedPorts = $stmt->rowCount();
+
         
         // Clean up old alert records (keeping longer for cooldown functionality)
         $stmt = $pdo->prepare('DELETE FROM alerts WHERE last_sent < ?');
@@ -165,12 +144,12 @@ function cleanup_old_data(PDO $pdo): void {
         $deletedAlerts = $stmt->rowCount();
         
         // Log cleanup activity (only if records were deleted)
-        if ($deletedReports > 0 || $deletedPorts > 0 || $deletedAlerts > 0) {
-            error_log("Database cleanup completed: {$deletedReports} reports (>{$dataRetentionDays}d), {$deletedPorts} port records (>{$dataRetentionDays}d), {$deletedAlerts} alert records (>{$alertRetentionDays}d) deleted");
+        if ($deletedReports > 0 || $deletedAlerts > 0) {
+            error_log("Database cleanup completed: {$deletedReports} reports (>{$dataRetentionDays}d), {$deletedAlerts} alert records (>{$alertRetentionDays}d) deleted");
         }
         
         // Optimize database after cleanup (SQLite specific - reclaims space)
-        if ($deletedReports > 0 || $deletedPorts > 0 || $deletedAlerts > 0) {
+        if ($deletedReports > 0 || $deletedAlerts > 0) {
             $pdo->exec('VACUUM');
         }
         

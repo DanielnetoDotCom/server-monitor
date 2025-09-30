@@ -22,14 +22,7 @@ define('SERVER_URL', 'http://localhost:81/server-monitor/');
 define('SITE_TITLE', 'Server Monitor Dashboard');
 define('GROUP_NAME', 'default');
 
-/**
- * =======================================================
- * PORT MONITORING CONFIGURATION
- * =======================================================
- */
 
-// External port checking
-define('ENABLE_EXTERNAL_PORT_CHECK', true);  // Enable/disable external port checking
 
 /**
  * =======================================================
@@ -52,7 +45,7 @@ define('ALERT_RETENTION_DAYS', 30);  // Days to keep alert records (for cooldown
 // Health check timeouts
 define('APACHE_CHECK_TIMEOUT', 2);    // seconds
 define('MYSQL_TIMEOUT', 2);           // seconds
-define('EXTERNAL_PORT_TIMEOUT', 10);  // seconds - Timeout for external port checks
+
 
 // Database location
 define('DB_FILE', __DIR__ . '/monitor.sqlite');

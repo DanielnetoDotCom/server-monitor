@@ -25,7 +25,7 @@ error_reporting(E_ALL);
 // Check for verbose flag
 $verbose = in_array('--verbose', $argv) || in_array('-v', $argv);
 
-$checkExternalPorts = in_array('--check-ports', $argv) || in_array('-c', $argv);
+
 
 /**
  * Output message if verbose mode is enabled
@@ -42,9 +42,7 @@ $hostname = parse_url(CLIENT_URL, PHP_URL_HOST);
 // Configuration - CHANGE THESE VALUES
 $PANEL_URL = SERVER_URL . "ingest.php";
 $SECRET = MONITOR_SECRET; 
-$CHECK_EXTERNAL_PORTS = true; // Enable/disable external port checking
 
-// NOTE: The ports to check are defined in the server's config.php file
 
 // Auto-generate server ID if not set via environment variable
 $SERVER_ID = md5(MONITOR_SECRET.$hostname);
@@ -366,36 +364,13 @@ function sendData(array $data): bool {
     return false;
 }
 
-/**
- * Send external port check data to monitoring server
- */
-function sendExternalPortData(string $hostname): void {
-    global $SECRET, $SERVER_ID, $CHECK_EXTERNAL_PORTS;
-    global $PANEL_URL;
-    
-    if (!$CHECK_EXTERNAL_PORTS) {
-        verboseLog("External port checking is disabled");
-        return;
-    }
-    
-    verboseLog("Sending external port check data...");
 
-    // use the isPortOpenExternal function to check each port and log results
-    foreach (Health::$PORT_SERVICES as $port => $service) {
-        $result = Health::isPortOpenExternal($hostname, $port);
-        if ($result['isOpen']) {
-            verboseLog("Port {$port} ({$service}) is OPEN");
-        } else {
-            verboseLog("Port {$port} ({$service}) is CLOSED ".json_encode($result));
-        }
-    }
-}
 
 /**
  * Main execution function
  */
 function main(): void {
-    global $SECRET, $SERVER_ID, $hostname, $verbose, $checkExternalPorts;
+    global $SECRET, $SERVER_ID, $hostname, $verbose;
     
     verboseLog("=== Server Monitor Agent Starting ===");
     verboseLog("Server ID: {$SERVER_ID}");
@@ -448,17 +423,7 @@ function main(): void {
         exit(1);
     }
     
-    // Send external port check data (runs less frequently)
-    // Only check external ports every 5 minutes to avoid overloading external service
-    $currentMinute = (int)date('i');
-    verboseLog("Current minute: {$currentMinute}");
-    
-    if ($currentMinute % 5 === 0 || $checkExternalPorts) {
-        verboseLog("=== External Port Check Time ===");
-        sendExternalPortData($hostname);
-    } else {
-        verboseLog("Skipping external port check (runs every 5 minutes)");
-    }
+
     
     verboseLog("=== Agent Execution Completed Successfully ===");
     

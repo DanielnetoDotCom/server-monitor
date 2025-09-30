@@ -87,9 +87,7 @@ try {
     $stmt->execute([$dataCutoffTime]);
     $oldReports = $stmt->fetchColumn();
     
-    $stmt = $pdo->prepare('SELECT COUNT(*) FROM external_ports WHERE last_checked < ?');
-    $stmt->execute([$dataCutoffTime]);
-    $oldPorts = $stmt->fetchColumn();
+
     
     $stmt = $pdo->prepare('SELECT COUNT(*) FROM alerts WHERE last_sent < ?');
     $stmt->execute([$alertCutoffTime]);
@@ -97,11 +95,10 @@ try {
     
     echo "Records to be deleted:\n";
     echo "  Reports: $oldReports\n";
-    echo "  External ports: $oldPorts\n"; 
     echo "  Alerts: $oldAlerts\n";
-    echo "  Total: " . ($oldReports + $oldPorts + $oldAlerts) . "\n\n";
+    echo "  Total: " . ($oldReports + $oldAlerts) . "\n\n";
     
-    if ($oldReports === 0 && $oldPorts === 0 && $oldAlerts === 0) {
+    if ($oldReports === 0 && $oldAlerts === 0) {
         echo "No old records found. Database is already clean!\n";
         exit(0);
     }
@@ -132,12 +129,7 @@ try {
         echo "✓ Deleted $oldReports old report records\n";
     }
     
-    // Delete old external port data
-    if ($oldPorts > 0) {
-        $stmt = $pdo->prepare('DELETE FROM external_ports WHERE last_checked < ?');
-        $stmt->execute([$dataCutoffTime]);
-        echo "✓ Deleted $oldPorts old external port records\n";
-    }
+
     
     // Delete old alert records
     if ($oldAlerts > 0) {
